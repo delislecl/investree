@@ -1,4 +1,5 @@
 pragma solidity ^0.4.0;
+import "./ERC20Interface.sol";
 
 contract INmultisig {
     
@@ -26,6 +27,8 @@ contract INmultisig {
         uint id_transaction;
         address destination;
         uint amount;
+        bool isERC20;
+        address ERC20_adress;
         bool isExecuted;
         uint has_Lender_confirmed;
         uint has_Borrower_confirmed;
@@ -41,7 +44,7 @@ contract INmultisig {
     
     //Events for important events
     event depositReceived(address sender, uint value);
-    event transactionProposed(uint id_transaction, address destination, uint amount);
+    event transactionProposed(uint id_transaction, address destination, uint amount, bool isERC20, address ERC20_adress);
     event transactionExecuted(uint id_transaction, address destination, uint amount);
     
     //Constructor, Initialize variables of smart contracts, only called once. 
@@ -53,21 +56,23 @@ contract INmultisig {
     }
     
     //Submission function
-    function propose_transaction(address destination, uint amount) public {
+    function propose_transaction(address destination, uint amount, bool isERC20, address ERC20_adress) public {
         require(msg.sender == Investree);
         require(destination > 0);
         uint new_id = Pending_transactions.length;
         Pending_transactions.push(pending_transaction(
                 new_id, //transaction id
                 destination, //address of destination
-                amount, //amount in wei
+                amount, //amount
+                isERC20, // ERC20 token  or ETH
+                ERC20_adress, // Adress or ERC20 contract (enter any address if ETH transaction, will be disregarded)
                 false, // isExecuted
                 0, // Lender approval
                 0, //Borrower approval
                 0)); //Community approval
                 
         //Transaction proposed
-        emit transactionProposed(new_id, destination, amount);
+        emit transactionProposed(new_id, destination, amount, isERC20, ERC20_adress);
         
         last_transaction_id = new_id;
     }
@@ -97,8 +102,15 @@ contract INmultisig {
             address address_to_transfer = Pending_transactions[transaction_id].destination;
             
             //Execution
-            address_to_transfer.transfer(amount_to_transfer);
-        
+            if (Pending_transactions[transaction_id].isERC20) {
+                //ERC20 transaction
+                ERC20Interface instance = ERC20Interface(Pending_transactions[transaction_id].ERC20_adress);
+                instance.transfer(address_to_transfer, amount_to_transfer);
+            } else {
+                //ETH transaction
+                address_to_transfer.transfer(amount_to_transfer);
+            }
+            
             //Transaction executed
             Pending_transactions[transaction_id].isExecuted = true;
             emit transactionExecuted(transaction_id, address_to_transfer, amount_to_transfer);
