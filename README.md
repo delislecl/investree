@@ -31,3 +31,128 @@ mediator = 0x4B0897b0513fdC7C541B6d9D7E929C4e5364D2dB; //Address used by Communi
 ```
 
 At this point, an instance of clm has been created with those parameters and particicpants can interact with clm contract.
+
+### Lender/Borrower fund clm with loan/collateral
+
+During the life of the loan, 2 internal State variables (state1) and 1 global State (state2) variable will return loan process status.
+When and instance is created, those State variables are initialized at the following values :
+
+```
+state_loan = state1.waiting;
+state_collateral = state1.waiting;
+state_global = state2.waiting_for_collateral_and_loan;
+```
+
+To fund the clm instance, participants will have to send the corrcet amount of token to the CLM. For example, here the amount of tokens needed will be :
+- 200 "TOKB" from Borrower
+- 100 "TOKA" from Lender
+
+The following functions can we used to see the amount of tokens received from Borrower and Lender :
+
+```
+ //Get  amount of loan tokens on contract
+ function get_loan_received() public view returns(uint) {}
+    
+ //Get  amount of collateral tokens on contract
+ function get_collateral_received() public view returns(uint) {}
+ ```
+
+When Borrower and Lender have sent they tokens, they can respectively call their validation functions :
+
+```
+//Check if contract has received enough collateral tokens
+function validate_collateral() public onlyParticipants {}
+    
+//Check if contract has received enough loan tokens
+function validate_loan() public onlyParticipants {}
+```
+Once a participant validates, the State variable is updated to the "validated" mode :
+```
+state_collateral = state1.validated;
+state_loan = state1.validated;
+```
+Once both collateral and loan have been validated, Mulitsignature contract is being generated and :
+- Loan amount is sent to Borrower
+- Collateral amount is sent to multilignature 
+
+```
+//Send loan to borrower
+function send_loan() private {
+    require(state_loan == state1.validated && state_collateral == state1.validated);
+    transfer_loan(borrower, loan_amount);
+}
+    
+//Send collateral to multisig
+function send_collateral() private {
+    require(state_loan == state1.validated && state_collateral == state1.validated);
+        
+    //We create the multisig for collateral_token
+    multisig_deployed = new multisig(lender, borrower);
+    multisig_address = address(multisig_deployed);
+        
+    transfer_collateral(multisig_deployed, collateral_initial_amount);
+}
+```
+Global state variable is also being updated : ```state_global = state2.waiting_for_maturity;```
+Borrower can now use loan during the loan life and will have to adjust collateral when mediator sends collateral updates.
+
+### Mediator sends collateral adjustments
+
+### Borrower returns loan
+
+Borrower has till maturity + days_to_adjust (22 days in this example) to return loan amount and premium to clm.
+When he has sent loan amount + premium (110 TOKA) to clm, he can then call :
+
+```
+//Return loan + fee to lender
+function  return_loan()  public onlyParticipants {
+    require(state_global == state2.waiting_for_maturity);
+    require(state_loan != state1.returned);
+        
+    uint loan_received = get_balance_loan(this);
+    if(loan_received >= loan_amount + loan_fee_amount) {
+        //Return loan to lender
+        uint amount_to_transfer = loan_amount + loan_fee_amount;
+        transfer_loan(lender, amount_to_transfer);
+        state_loan = state1.returned;
+            
+        //Return collateral
+        return_collateral();
+    }
+}
+```
+This function will :
+- Transfer the loan amount and premium to Lender
+- Update loan state variable to "returned"
+- Propose and validate a transaction to multisig in order to return collateral to borrower
+- Update collateral state variable to "returned"
+- Update global state variable to "finished"
+
+Borrower will now have to accept transaction proposed to multisig and he will get his collateral back.
+Process is now Finished and state variables have the following values :
+
+```
+state_loan = state1.returned;
+state_collateral = state1.returned;
+state_global = state1.finished;
+```
+### If Borrower defaults
+
+Their are 2 reasons of default :
+- Borrower fails to adjust collateral amount on time
+- Borrower fails to return loan and premium on time
+
+In this case, Lender can request a default using the following function :
+```
+function request_default() public {}
+```
+In this case, the clm will :
+- Porpose and validate a transaction to multisig in order to send collateral to Lender
+- Update global state variable to "default"
+
+Process is now Finished and state variables have the following values :
+```
+state_loan = state1.validated;
+state_collateral = state1.validated or state1.waiting;
+state_global = state1.finished;
+```
