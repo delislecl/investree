@@ -5,9 +5,10 @@ Below is description of behavior of Investree Collateral Management Smart Contra
 ## Architecture
 
 The contract folder is composed of 4 smart Contracts :
-- factory.sol : which is factory contract that will generate instance of clm Contracts when borrower/lender will agree on loan parameters. It will be the only reliable source of clm instances generated.
-- clm.sol : contract that will manage the loan process during its life. He will generate a multisignature wallet that will be used to store collateral during loan life.
-- [multisig.sol](multisig.sol) : 2 of 3 multisignature contract that will store collateral. Borrower and Lender will be able to end loan earlier than expected by bypassing clm.
+- [factory](contracts/factory.sol) : which is factory contract that will generate instance of clm Contracts when borrower/lender will agree on loan parameters. It will be the only reliable source of clm instances generated.
+- [clm](contracts/clm.sol) : contract that will manage the loan process during its life. He will generate a multisignature wallet that will be used to store collateral during loan life.
+- [multisig](contracts/multisig.sol) : 2 of 3 multisignature contract that will store collateral. Borrower and Lender will be able to end loan earlier than expected by bypassing clm.
+- [ERC20Interface](contracts/ERC20Interface.sol) : Interface for interacting with ERC20 tokens.
 
 ## User path
 
@@ -52,7 +53,7 @@ The following functions can we used to see the amount of tokens received from Bo
 ```
  //Get  amount of loan tokens on contract
  function get_loan_received() public view returns(uint) {}
-    
+
  //Get  amount of collateral tokens on contract
  function get_collateral_received() public view returns(uint) {}
  ```
@@ -62,7 +63,7 @@ When Borrower and Lender have sent they tokens, they can respectively call their
 ```
 //Check if contract has received enough collateral tokens
 function validate_collateral() public onlyParticipants {}
-    
+
 //Check if contract has received enough loan tokens
 function validate_loan() public onlyParticipants {}
 ```
@@ -73,7 +74,7 @@ state_loan = state1.validated;
 ```
 Once both collateral and loan have been validated, Mulitsignature contract is being generated and :
 - Loan amount is sent to Borrower
-- Collateral amount is sent to multilignature 
+- Collateral amount is sent to multilignature
 
 ```
 //Send loan to borrower
@@ -81,15 +82,15 @@ function send_loan() private {
     require(state_loan == state1.validated && state_collateral == state1.validated);
     transfer_loan(borrower, loan_amount);
 }
-    
+
 //Send collateral to multisig
 function send_collateral() private {
     require(state_loan == state1.validated && state_collateral == state1.validated);
-        
+
     //We create the multisig for collateral_token
     multisig_deployed = new multisig(lender, borrower);
     multisig_address = address(multisig_deployed);
-        
+
     transfer_collateral(multisig_deployed, collateral_initial_amount);
 }
 ```
@@ -108,14 +109,14 @@ When he has sent loan amount + premium (110 TOKA) to clm, he can then call :
 function  return_loan()  public onlyParticipants {
     require(state_global == state2.waiting_for_maturity);
     require(state_loan != state1.returned);
-        
+
     uint loan_received = get_balance_loan(this);
     if(loan_received >= loan_amount + loan_fee_amount) {
         //Return loan to lender
         uint amount_to_transfer = loan_amount + loan_fee_amount;
         transfer_loan(lender, amount_to_transfer);
         state_loan = state1.returned;
-            
+
         //Return collateral
         return_collateral();
     }
