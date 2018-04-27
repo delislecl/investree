@@ -23,11 +23,11 @@ loan_fee_amount = 10;
 collateral_token_address = 0x9635E132729Aa83B126ab8B159194196b5EeB069; //ERC20 token "TOKB"
 collateral_token_type = tokenType.ERC20;
 collateral_initial_amount = 200;
-maturity = 20; // 20 days
+maturity = 20; // 20 days, beginning at clm creation
 days_to_adjust = 2; // 2 days to adjust collateral
 borrower = 0x14723A09ACff6D2A60DcdF7aA4AFf308FDDC160C;
 lender = 0xCA35b7d915458EF540aDe6068dFe2F44E8fa733c;
-mediator = 0x4B0897b0513fdC7C541B6d9D7E929C4e5364D2dB;
-begin_time = now;
-end_time = now + maturity * 1 days;
+mediator = 0x4B0897b0513fdC7C541B6d9D7E929C4e5364D2dB; //Address used by Community
 ```
+
+At this point, an instance of clm has been created with those parameters and particicpants can interact with clm contract.
