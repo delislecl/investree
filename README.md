@@ -155,5 +155,5 @@ Process is now Finished and state variables have the following values :
 ```
 state_loan = state1.validated;
 state_collateral = state1.validated or state1.waiting;
-state_global = state1.finished;
+state_global = state2.finished or state2.waiting_for_collateral_adjustment;
 ```
