@@ -33,7 +33,7 @@ mediator = 0x4B0897b0513fdC7C541B6d9D7E929C4e5364D2dB; //Address used by Communi
 
 At this point, an instance of clm has been created with those parameters and particicpants can interact with clm contract.
 
-### Lender/Borrower fund clm with loan/collateral
+### 1. Lender/Borrower fund clm with loan/collateral
 
 During the life of the loan, 2 internal State variables (state1) and 1 global State (state2) variable will return loan process status.
 When and instance is created, those State variables are initialized at the following values :
@@ -81,25 +81,89 @@ Once both collateral and loan have been validated, Mulitsignature contract is be
 function send_loan() private {
     require(state_loan == state1.validated && state_collateral == state1.validated);
     transfer_loan(borrower, loan_amount);
+        
+    emit Loan_transfered_to_borrower(collateral_initial_amount);
 }
 
 //Send collateral to multisig
 function send_collateral() private {
     require(state_loan == state1.validated && state_collateral == state1.validated);
-
+        
     //We create the multisig for collateral_token
     multisig_deployed = new multisig(lender, borrower);
     multisig_address = address(multisig_deployed);
-
+    emit Multisig_deployed();
+        
     transfer_collateral(multisig_deployed, collateral_initial_amount);
+        
+    emit Collateral_transfered_to_multisig(collateral_initial_amount);
 }
 ```
 Global state variable is also being updated : ```state_global = state2.waiting_for_maturity;```
 Borrower can now use loan during the loan life and will have to adjust collateral when mediator sends collateral updates.
 
-### Mediator sends collateral adjustments
+### 2. Mediator sends collateral adjustments
 
-### Borrower returns loan
+When Mediator wants to ask the borrower to adjust the amount of collateral, he can use the following functions. If adjustment is positive (borrower needs to add collateral) clm waits for more collateral. If adjustment is negative, clm automatically submit an transaction for adjustment to multisig and borrower can then validate.
+
+```
+function request_collateral_adjustment(uint amount) public onlyMediator {
+        require(state_loan == state1.validated);
+        require(amount > 0);
+        
+        if (amount > 0){
+            collateral_adjustment_amount = amount;
+            collateral_adjustment_deadline = now + days_to_adjust * 1 days;
+            state_collateral = state1.waiting;
+            state_global = state2.waiting_for_collateral_adjustment;
+            
+            emit Collateral_adjustment_submitted(amount);
+        } else {
+            //clm propose transaction to multisig to reduce collateral
+            if (collateral_token_type == tokenType.ETH) {
+                multisig_deployed.propose_transaction(borrower,-amount,false,collateral_token_address);
+            } else {
+                multisig_deployed.propose_transaction(borrower,-amount,true,collateral_token_address);
+            }
+        }
+    }
+```
+If amount is positive, the borrower has ```days_to_adjust``` days to send more collateral to clm.
+At that point, states variables are the following :
+
+```
+state_loan = state1.validated;
+state_collateral = state1.waiting;
+state_global = state1.waiting_for_collateral_adjustment;
+```
+
+Once borrower has added collateral to clm, he can validate its adjustment using :
+
+```
+function send_collateral_adjustment() public onlyParticipants {
+        if (state_global == state2.waiting_for_collateral_adjustment) {
+            uint collateral_added = get_collateral_received();
+            if (collateral_added >= collateral_adjustment_amount) {
+               transfer_collateral(multisig_deployed, collateral_adjustment_amount);
+               collateral_adjustment_amount = 0;
+               collateral_adjustment_deadline = end_time;
+               state_collateral = state1.validated;
+               state_global = state2.waiting_for_maturity;
+               
+               emit Collateral_adjustment_received();
+            }
+        }
+    }
+```
+After that, loan process returns to its normal state and states variables have the following values :
+
+```
+state_loan = state1.validated;
+state_collateral = state1.validated;
+state_global = state1.waiting_for_maturity;
+```
+
+### 3. Borrower returns loan
 
 Borrower has till maturity + days_to_adjust (22 days in this example) to return loan amount and premium to clm.
 When he has sent loan amount + premium (110 TOKA) to clm, he can then call :
@@ -107,16 +171,15 @@ When he has sent loan amount + premium (110 TOKA) to clm, he can then call :
 ```
 //Return loan + fee to lender
 function  return_loan()  public onlyParticipants {
-    require(state_global == state2.waiting_for_maturity);
     require(state_loan != state1.returned);
-
+        
     uint loan_received = get_balance_loan(this);
     if(loan_received >= loan_amount + loan_fee_amount) {
         //Return loan to lender
         uint amount_to_transfer = loan_amount + loan_fee_amount;
         transfer_loan(lender, amount_to_transfer);
         state_loan = state1.returned;
-
+            
         //Return collateral
         return_collateral();
     }
@@ -137,7 +200,7 @@ state_loan = state1.returned;
 state_collateral = state1.returned;
 state_global = state1.finished;
 ```
-### If Borrower defaults
+### 4. If Borrower defaults
 
 Their are 2 reasons of default :
 - Borrower fails to adjust collateral amount on time
