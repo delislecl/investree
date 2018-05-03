@@ -2,6 +2,8 @@
 
 Below is description of behavior of Investree Collateral Management Smart Contracts.
 
+
+
 ## Architecture
 
 The contract folder is composed of 4 smart Contracts :
@@ -220,3 +222,6 @@ state_loan = state1.validated;
 state_collateral = state1.validated or state1.waiting;
 state_global = state2.finished or state2.waiting_for_collateral_adjustment;
 ```
+## Graph of states
+
+![alt text](graph.png)
