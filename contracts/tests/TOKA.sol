@@ -1,5 +1,5 @@
 pragma solidity ^0.4.11;
-import "contracts/token/StandardToken.sol";
+import "zeppelin/token/StandardToken.sol";
 
 contract TokenA is StandardToken {
 
